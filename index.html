@@ -1,0 +1,434 @@
+<!doctype html>
+<html>
+	<head>
+		<title>learningthree.js boiler plate for three.js</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		
+			
+		<script src="vendor/three.js/Three.js"></script>
+		<script src="vendor/three.js/Detector.js"></script>
+		<!-- https://github.com/mrdoob/stats.js -->
+		<script src="vendor/three.js/Stats.js"></script>
+
+		<script src="vendor/threex/THREEx.screenshot.js"></script>
+		<script src="vendor/threex/THREEx.FullScreen.js"></script>
+		<script src="vendor/threex/THREEx.WindowResize.js"></script>
+		<script src="vendor/threex.dragpancontrols.js"></script>
+
+		<link  href="css/main.css" rel="stylesheet"/>
+	</head>
+<body>
+	<!-- three.js container -->
+	<div id="container"></div>
+	<!-- info on screen display -->
+	<div id="info">
+		<div class="top">
+derp
+		</div>
+		<div class="bottom" id="inlineDoc" >
+			- <i>p</i> for screenshot
+		</div> 
+	</div> 
+
+	<script type="text/javascript">
+		var stats, scene, renderer;
+		var camera, cameraControl;
+
+		if( !init() )	animate();
+
+		// init the scene
+		function init(){
+
+			if( Detector.webgl ){
+				renderer = new THREE.WebGLRenderer({
+					antialias		: true,	// to get smoother output
+					preserveDrawingBuffer	: true	// to allow screenshot
+				});
+				renderer.setClearColorHex( 0xFFFFFF, 1 );
+			// uncomment if webgl is required
+			//}else{
+			//	Detector.addGetWebGLMessage();
+			//	return true;
+			}else{
+				renderer	= new THREE.CanvasRenderer();
+			}
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			document.getElementById('container').appendChild(renderer.domElement);
+
+			// add Stats.js - https://github.com/mrdoob/stats.js
+			stats = new Stats();
+			stats.domElement.style.position	= 'absolute';
+			stats.domElement.style.bottom	= '0px';
+			document.body.appendChild( stats.domElement );
+
+			// create a scene
+			scene = new THREE.Scene();
+
+			// put a camera in the scene
+			camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 1, 10000 );
+			camera.position.set(60,60,60);
+			scene.add(camera);
+
+			// create a camera contol
+			cameraControls	= new THREEx.DragPanControls(camera)
+
+			var ambient = new THREE.AmbientLight( 0x888888 );
+			scene.add( ambient );
+
+			// transparently support window resize
+			THREEx.WindowResize.bind(renderer, camera);
+			// allow 'p' to make screenshot
+			THREEx.Screenshot.bindKey(renderer);
+			// allow 'f' to go fullscreen where this feature is supported
+			if( THREEx.FullScreen.available() ){
+				THREEx.FullScreen.bindKey();		
+				document.getElementById('inlineDoc').innerHTML	+= "- <i>f</i> for fullscreen";
+			}
+
+			doInit();
+		}
+
+		var G;
+		var timestep;
+		var numPieces;
+		var systemMass;
+		var OFORCE;
+		var ROT;
+		var poList;
+		var materialList;
+		var tempVector;
+		var blankVector;
+		var centerG;
+		var offset;
+		var force;
+		var rad;
+		var pPos;
+		var pVel;
+		var pForce;
+		var randVector;
+		var activeLights;
+		function doInit()
+		{
+			G = 1.0;
+			timestep = 0.05;
+			numPieces = 500;
+			systemMass = 500;
+			OFORCE = .7;
+			ROT = .89;
+			activeLights = 0;
+			poList = new Array();
+
+			tempVector = new THREE.Vector3(0,0,0);
+			blankVector = new THREE.Vector3(0,0,0);
+			force = new THREE.Vector3(0,0,0);
+			rad = new THREE.Vector3(0,0,0);
+			centerG = new THREE.Vector3(0,0,0);
+			offset = new THREE.Vector3(0,0,0);
+			pPos = new THREE.Vector3(0,0,0);
+			pVel = new THREE.Vector3(0,0,0);
+			pForce = new THREE.Vector3(0,0,0);
+			randVector = new THREE.Vector3(0,0,0);
+
+			materialList = new Object();
+
+			materialList['dirt'] = { material: new THREE.MeshPhongMaterial( { map: THREE.ImageUtils.loadTexture( 'media/dirt.jpg' ), ambient: 0xffffff } ), doubleSided: true };
+			materialList['earth'] = { material: new THREE.MeshPhongMaterial( { map: THREE.ImageUtils.loadTexture( 'media/earth.jpg' ), ambient: 0xffffff } ), doubleSided: true };
+			materialList['sun'] = { material: new THREE.MeshPhongMaterial( { map: THREE.ImageUtils.loadTexture( 'media/sun.jpg' ), ambient: 0xffffff } ), doubleSided: true };
+			materialList['gas'] = { material: new THREE.MeshPhongMaterial( { map: THREE.ImageUtils.loadTexture( 'media/gas.jpg' ), ambient: 0xffffff } ), doubleSided: true };
+			materialList['ice'] = { material: new THREE.MeshPhongMaterial( { map: THREE.ImageUtils.loadTexture( 'media/ice.jpg' ), ambient: 0xffffff } ), doubleSided: true };
+			materialList['redrock'] = { material: new THREE.MeshPhongMaterial( { map: THREE.ImageUtils.loadTexture( 'media/redrock.jpg' ), ambient: 0xffffff } ), doubleSided: true };
+			materialList['backstars'] = { material: new THREE.MeshPhongMaterial( { map: THREE.ImageUtils.loadTexture( 'media/backstars.jpg' ), ambient: 0xffffff } ), doubleSided: true };
+
+			var backstars = new THREE.Mesh( new THREE.SphereGeometry(2000, 50, 50), materialList['backstars']['material']);
+			backstars.scale.x = -1;
+			scene.add(backstars);
+
+//			var light = new THREE.PointLight( 0xFF0000, 100, 100);
+//			light.name = 'light';
+//			scene.add(light);
+
+			var t1 = new THREE.Vector3(0,0,0);
+			var t2 = new THREE.Vector3(-15,0,-15);
+			var t3 = new THREE.Vector3(0,ROT,0);
+
+			addPlanet(t1, t1, t3, systemMass/2, 10);
+			addPlanet(t2, t1, t3, systemMass/2, 10);
+//			for(var i = 0; i < 100; i++) addRandomPlanet();
+
+			camera.lookAt(tempVector);
+		}
+
+		function rand(){return Math.random();}
+
+		function addRandomPlanet()
+		{
+			var p1 = new THREE.Vector3((rand()-0.5)*60,(rand()-0.5)*60,(rand()-0.5)*60);
+			var v1 = new THREE.Vector3((rand()-0.5)*10,(rand()-0.5)*40,(rand()-0.5)*20);
+			var r1 = new THREE.Vector3(0, rand()*3, 0);
+			var m1 = rand()*200;
+			var s1 = rand()*3;
+
+			addPlanet(p1, v1, r1, m1, s1);
+		}
+
+		function addPlanet(p, v, r, m, s)
+		{
+			var planetObj = new Object();
+
+			planetObj.position = p.clone();
+			planetObj.velocity = v.clone();
+			planetObj.acceleration = blankVector.clone();
+			planetObj.rotationSpeed = r.clone();
+			planetObj.rotation = blankVector.clone();
+			planetObj.force = blankVector.clone();
+			planetObj.mass = m;
+			planetObj.volume = s;
+			planetObj.size = Math.pow(planetObj.volume, 0.333);
+			planetObj.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 6), materialList['dirt']['material']);
+
+			changeAttrib(planetObj);
+
+			scene.add(planetObj.mesh);
+			poList.push(planetObj);
+
+			p.x += Math.random();
+		}
+
+		var p1scale;
+		var p2scale;
+		function joinPlanets(p1, p2)
+		{
+			poList[p1].mass += poList[p2].mass;
+			p2scale = poList[p2].mass / poList[p1].mass;
+			p1scale = 1.0 - p2scale;
+
+			tempVector.copy(poList[p1].position);
+			tempVector.multiplyScalar(p1scale);
+			poList[p1].position.copy(blankVector);
+			poList[p1].position.addSelf(tempVector)
+			tempVector.copy(poList[p2].position);
+			tempVector.multiplyScalar(p2scale);
+			poList[p1].position.addSelf(tempVector);
+
+			tempVector.copy(poList[p1].velocity);
+			tempVector.multiplyScalar(p1scale);
+			poList[p1].velocity.copy(blankVector);
+			poList[p1].velocity.addSelf(tempVector)
+			tempVector.copy(poList[p2].velocity)
+			tempVector.multiplyScalar(p2scale);
+			poList[p1].velocity.addSelf(tempVector);
+
+			poList[p1].force.addSelf(poList[p2].force)
+			poList[p1].volume += poList[p2].volume;
+
+			changeAttrib(poList[p1]);
+		}
+
+		function removePlanet(p)
+		{
+//			if(poList[p].mesh.getChildByName('light'))
+//			{
+//				poList[p].mesh.remove(poList[p].mesh.getChildByName('light'));
+//				activeLights--;
+//			}
+
+			scene.remove(poList[p].mesh);
+			poList.splice(p, 1);
+		}
+
+		var pieces;
+		var mScale;
+		var sScale;
+		var pMass;
+		var pVol;
+		function explodePlanet(p)
+		{
+			for(pieces = 0; pieces < numPieces; pieces++)
+			{
+				mScale = (1 / numPieces);
+				pMass = mScale * poList[p].mass;
+
+				sScale = mScale * (1.0 + rand()*0.4 - 0.2);
+				pVol = sScale * poList[p].volume;
+
+				if(rand() < 0.8)
+				{
+					offset.set(rand()*5 - 0.5, rand()*5 - 0.5, rand()*5 - 0.5);
+				}
+				else
+				{
+					offset.copy(centerG).multiplyScalar(-1);
+				}
+				offset.setLength((0.5+rand()*3.5) * poList[p].size);
+				centerG.addSelf(offset);
+
+				pPos.copy(poList[p].position).addSelf(offset);
+
+				tempVector.copy(offset).multiplyScalar(OFORCE);
+				pVel.copy(poList[p].velocity).addSelf(tempVector);
+
+				tempVector.copy(offset).crossSelf(poList[p].rotationSpeed);
+				randVector.set((rand()-0.5)*10, (rand()-0.5)*10, (rand()-0.5)*10);
+				pVel.addSelf(tempVector).addSelf(randVector);
+
+				tempVector.copy(pVel);
+				poList[p].force.subSelf(tempVector.divideScalar(timestep));
+
+				addPlanet(pPos, pVel, poList[p].rotation, pMass, pVol);
+				movePlanet(poList[poList.length - 1]);
+			}
+			poList[p].force.divideScalar(numPieces);
+		}
+
+		function changeAttrib(planetObj)
+		{
+			if (planetObj.mass > systemMass * 0.1)
+			{
+				planetObj.mesh.material = materialList['sun']['material'];
+//				if(activeLights < 1)
+//				{
+//					planetObj.mesh.add(scene.lights[0]);
+//					activeLights++;
+//				}
+			}
+			else
+			{
+//				if(planetObj.mesh.getChildByName('light'))
+//				{
+//		                        planetObj.mesh.remove(planetObj.mesh.getChildByName('light'));
+//					activeLights--;
+//				}
+
+				if (planetObj.mass/planetObj.volume > 35)
+				{
+					planetObj.mesh.material = materialList['dirt']['material'];
+				}
+				else if(planetObj.mass/planetObj.volume > 25)
+				{
+					planetObj.mesh.material = materialList['redrock']['material'];
+				}
+				else if(planetObj.mass/planetObj.volume > 15)
+				{
+					planetObj.mesh.material = materialList['ice']['material'];
+				}
+				else if(planetObj.mass/planetObj.volume > 10)
+				{
+					planetObj.mesh.material = materialList['gas']['material'];
+				}
+				else
+				{
+					planetObj.mesh.material = materialList['earth']['material'];
+				}
+			}
+
+			planetObj.mesh.position.copy(planetObj.position);
+			planetObj.mesh.rotation.copy(planetObj.rotation);
+
+			planetObj.size = Math.pow(planetObj.volume, 0.333);
+			planetObj.mesh.scale.set(planetObj.size, planetObj.size, planetObj.size);
+		}
+
+		function movePlanet(planetObj)
+		{
+			tempVector.copy(planetObj.force);
+			planetObj.acceleration.copy(tempVector.divideScalar(planetObj.mass));
+
+			tempVector.copy(planetObj.acceleration);
+			planetObj.velocity.addSelf(tempVector.multiplyScalar(timestep));
+
+			tempVector.copy(planetObj.velocity);
+			planetObj.position.addSelf(tempVector.multiplyScalar(timestep));
+
+			planetObj.force.copy(blankVector);
+
+			planetObj.mesh.position.copy(blankVector);
+
+			tempVector.copy(planetObj.rotationSpeed).multiplyScalar(-1/planetObj.size);
+			planetObj.rotation.addSelf(planetObj.rotationSpeed);
+
+			planetObj.mesh.rotation.copy(planetObj.rotation);
+			planetObj.mesh.position.copy(planetObj.position);
+		}
+
+		var p1, p2, dist;
+		function updatePhysics()
+		{
+			if(poList.length == 1)
+			{
+				explodePlanet(0);
+				removePlanet(0);
+			}
+			else
+			{
+				for (p1 = 0; p1 < poList.length; p1++)
+				{
+					p2 = p1;
+					p2++;
+					for (; p2 < poList.length;)
+					{
+						rad.sub(poList[p2].position, poList[p1].position);
+						dist = rad.length();
+
+						if(dist < poList[p1].size + poList[p2].size)
+						{
+							joinPlanets(p1, p2);
+							removePlanet(p2);
+							continue;
+						}
+						else
+						{
+							force.copy(rad.normalize().multiplyScalar(G * poList[p1].mass * poList[p2].mass / (Math.pow(dist, 2))));
+
+							poList[p1].force.addSelf(force);
+							poList[p2].force.addSelf(force.multiplyScalar(-1));
+
+							p2++;
+						}
+					}
+				}
+
+				for(p1 = 0; p1 < poList.length; p1++)
+				{
+					if(rad.sub(camera.position, poList[p1].position).length() > 500)
+					{
+						removePlanet(p1);
+						continue;
+					}
+					else
+					{
+						movePlanet(poList[p1]);
+					}
+				}
+			}
+		}
+
+		// animation loop
+		function animate() {
+
+			// loop on request animation loop
+			// - it has to be at the begining of the function
+			// - see details at http://my.opera.com/emoller/blog/2011/12/20/requestanimationframe-for-smart-er-animating
+			requestAnimationFrame( animate );
+//setTimeout(animate, 200);
+			updatePhysics();
+
+			// do the render
+			render();
+
+			// update stats
+			stats.update();
+		}
+
+		// render the scene
+		function render() {
+
+			// update camera controls
+			cameraControls.update();
+
+			// actually render the scene
+			renderer.render( scene, camera );
+		}
+	</script>
+</body>
+</html>
